@@ -7,7 +7,7 @@ import "github.com/kelseyhightower/envconfig"
 import "golang.org/x/oauth2"
 
 // import "os"
-import "fmt"
+import "log"
 
 var doClient *godo.Client
 
@@ -78,7 +78,7 @@ func createRecord(record godo.DomainRecord) (*godo.DomainRecord, error) {
 
 func updateRecord(oldRecord *godo.DomainRecord, record godo.DomainRecord) (*godo.DomainRecord, error) {
 	ctx := context.TODO()
-	fmt.Println("Update Record", oldRecord.ID)
+	log.Println("Update Record", oldRecord.ID)
 	newRecord, _, err := doClient.Domains.EditRecord(ctx, config.Domain, oldRecord.ID, &godo.DomainRecordEditRequest{
 		Type: record.Type,
 		Name: record.Name,
@@ -103,26 +103,26 @@ func create(recordData godo.DomainRecord) {
 	record, err := createRecord(recordData)
 
 	if err != nil {
-		panic(fmt.Errorf("Record create error %s", err))
+		log.Fatalf("Record create error %s", err)
 	}
 
-	fmt.Println("Record created", record)
+	log.Println("Record created", record)
 }
 
 func update(record *godo.DomainRecord, recordData godo.DomainRecord) {
 	record, err := updateRecord(record, recordData)
 
 	if err != nil {
-		panic(fmt.Errorf("Record create error %s", err))
+		log.Fatalf("Record create error %s", err)
 	}
 
-	fmt.Println("Record updated", record)
+	log.Println("Record updated", record)
 }
 
 func init() {
 	err := envconfig.Process("doacme", &config)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	tokenSource := &tokenSource{
@@ -139,7 +139,7 @@ func main() {
 	toUpdate := config.Update
 
 	if (toDelete && toCreate) || (toDelete && toUpdate) {
-		panic("Can't delete and create/update at the same time")
+		log.Fatal("Can't delete and create/update at the same time")
 	}
 
 	recordData := godo.DomainRecord{Type: config.RecordType, Name: config.RecordName, Data: config.RecordData}
@@ -147,33 +147,31 @@ func main() {
 	record, err := findRecord(recordData)
 
 	if err != nil {
-		panic(fmt.Errorf("Record search error %s", err))
+		log.Fatalf("Record search error %s", err)
 	}
 
 	if toDelete {
 		if record == nil {
-			fmt.Println("Can't delete record, does not exists")
+			log.Println("Can't delete record, does not exists")
 			return
 		}
 
 		err = deleteRecord(record)
 
 		if err != nil {
-			panic(fmt.Errorf("Record delete failed %s", err))
+			log.Fatalf("Record delete failed %s", err)
 		}
-		fmt.Println("Record deleted")
+		log.Println("Record deleted")
 	} else {
 		if record == nil {
 			if !toCreate {
-				fmt.Println("Recored not exists, but creation disabled")
-				return
+				log.Fatal("Recored not exists, but creation disabled")
 			}
 
 			create(recordData)
 		} else {
 			if !toUpdate {
-				fmt.Println("Recored exists, but update disabled")
-				return
+				log.Fatal("Recored exists, but update disabled")
 			}
 
 			update(record, recordData)
