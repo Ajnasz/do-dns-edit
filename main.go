@@ -1,15 +1,16 @@
 package main
 
 import "context"
+import "flag"
+import "reflect"
+import "log"
+import "fmt"
 
 import "github.com/digitalocean/godo"
-import "github.com/kelseyhightower/envconfig"
 import "golang.org/x/oauth2"
 
-// import "os"
-import "log"
-
 var doClient *godo.Client
+var config Config
 
 // Config stores configuration
 type Config struct {
@@ -18,14 +19,12 @@ type Config struct {
 
 	RecordType string `required:"true"`
 	RecordName string `required:"true"`
-	RecordData string
+	RecordData string `required:"true"`
 
 	Delete bool
 	Create bool
 	Update bool
 }
-
-var config Config
 
 type tokenSource struct {
 	AccessToken string
@@ -119,8 +118,67 @@ func update(record *godo.DomainRecord, recordData godo.DomainRecord) {
 	log.Println("Record updated", record)
 }
 
+func validateField(field reflect.StructField, v reflect.Value) error {
+	if required, ok := field.Tag.Lookup("required"); ok {
+		if required == "true" {
+			value := v.FieldByName(field.Name)
+			isOk := false
+
+			switch field.Type.Name() {
+			case "string":
+				isOk = value.String() != ""
+				break
+			case "boolean":
+				isOk = value.Bool()
+				break
+			}
+
+			if !isOk {
+				return fmt.Errorf("%s is required", field.Name)
+			}
+		}
+	}
+
+	return nil
+}
+
+func validateConfig(config Config) error {
+	st := reflect.TypeOf(config)
+	v := reflect.ValueOf(config)
+
+	for i := 0; i < st.NumField(); i++ {
+		field := st.Field(i)
+
+		err := validateField(field, v)
+
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return nil
+}
+
 func init() {
-	err := envconfig.Process("doacme", &config)
+	config = Config{}
+
+	flag.StringVar(&config.Domain, "domain", "", "domain of the record")
+	flag.StringVar(&config.Token, "token", "", "digitalocean token, see https://cloud.digitalocean.com/settings/api/tokens")
+
+	flag.StringVar(&config.RecordType, "recordType", "", "Type of the DNS record, like A, TXT, MX, etc.")
+	flag.StringVar(&config.RecordName, "recordName", "", "Name of the record, like @, www, email, etc.")
+	flag.StringVar(&config.RecordData, "recordData", "", "Value of the record")
+
+	flag.BoolVar(&config.Delete, "delete", false, "Delete the record")
+	flag.BoolVar(&config.Create, "create", false, "Create the record if not exists")
+	flag.BoolVar(&config.Update, "update", false, "Update the record if exists")
+
+	flag.Parse()
+
+	log.Println(config)
+	err := validateConfig(config)
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -134,6 +192,7 @@ func init() {
 }
 
 func main() {
+
 	toDelete := config.Delete
 	toCreate := config.Create
 	toUpdate := config.Update
@@ -161,6 +220,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Record delete failed %s", err)
 		}
+
 		log.Println("Record deleted")
 	} else {
 		if record == nil {
