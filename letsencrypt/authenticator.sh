@@ -5,7 +5,9 @@ if [ -z "$DO_TOKEN" ];then
 	exit 1
 fi
 
-/home/ajnasz/bin/do-dns-edit \
+BASEDIR=$(dirname $0)
+
+$BASEDIR/../do-dns-edit \
 	-recordType="TXT" \
 	-token="$DO_TOKEN" \
 	-domain="$CERTBOT_DOMAIN" \

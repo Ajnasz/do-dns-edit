@@ -3,7 +3,6 @@ package main
 import "context"
 import "flag"
 import "reflect"
-import "log"
 import "fmt"
 import "strings"
 
@@ -13,31 +12,7 @@ import "golang.org/x/oauth2"
 var doClient *godo.Client
 var config Config
 
-// Config stores configuration
-type Config struct {
-	Domain string `required:"true"`
-	Token  string `required:"true"`
-
-	RecordType string `required:"true"`
-	RecordName string `required:"true"`
-	RecordData string `required:"true"`
-
-	Delete bool
-	Create bool
-	Update bool
-}
-
-// TLD returns TLD of Domain
-func (config Config) TLD() string {
-	domainParts := strings.Split(config.Domain, ".")
-	return strings.Join(domainParts[len(domainParts)-2:], ".")
-}
-
-// SubDomain return sobdomains
-func (config Config) SubDomain() string {
-	domainParts := strings.Split(config.Domain, ".")
-	return strings.Join(domainParts[:len(domainParts)-2], ".")
-}
+var logger Logger
 
 type tokenSource struct {
 	AccessToken string
@@ -90,7 +65,7 @@ func createRecord(record godo.DomainRecord) (*godo.DomainRecord, error) {
 
 func updateRecord(oldRecord *godo.DomainRecord, record godo.DomainRecord) (*godo.DomainRecord, error) {
 	ctx := context.TODO()
-	log.Println("Update Record", oldRecord.ID)
+	logger.Log("Update Record", oldRecord.ID)
 	newRecord, _, err := doClient.Domains.EditRecord(ctx, config.TLD(), oldRecord.ID, &godo.DomainRecordEditRequest{
 		Type: record.Type,
 		Name: record.Name,
@@ -115,20 +90,20 @@ func create(recordData godo.DomainRecord) {
 	record, err := createRecord(recordData)
 
 	if err != nil {
-		log.Fatalf("Record create error %s", err)
+		logger.Fatalf("Record create error %s", err)
 	}
 
-	log.Println("Record created", record)
+	logger.Log("Record created", record)
 }
 
 func update(record *godo.DomainRecord, recordData godo.DomainRecord) {
 	record, err := updateRecord(record, recordData)
 
 	if err != nil {
-		log.Fatalf("Record create error %s", err)
+		logger.Fatalf("Record create error %s", err)
 	}
 
-	log.Println("Record updated", record)
+	logger.Log("Record updated", record)
 }
 
 func validateField(field reflect.StructField, v reflect.Value) error {
@@ -174,6 +149,7 @@ func validateConfig(config Config) error {
 }
 
 func init() {
+	logger = Logger{}
 	config = Config{}
 
 	flag.StringVar(&config.Domain, "domain", "", "domain of the record")
@@ -189,11 +165,12 @@ func init() {
 
 	flag.Parse()
 
-	log.Println("Config", config)
 	err := validateConfig(config)
 
+	logger.Fatal("ERR")
+
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal(err)
 	}
 
 	tokenSource := &tokenSource{
@@ -211,44 +188,50 @@ func main() {
 	toUpdate := config.Update
 
 	if (toDelete && toCreate) || (toDelete && toUpdate) {
-		log.Fatal("Can't delete and create/update at the same time")
+		logger.Fatal("Can't delete and create/update at the same time")
+	}
+
+	name := []string{config.RecordName}
+
+	if config.SubDomain() != "" {
+		name = append(name, config.SubDomain())
 	}
 
 	recordData := godo.DomainRecord{
 		Type: config.RecordType,
-		Name: config.RecordName + "." + config.SubDomain(),
+		Name: strings.Join(name, "."),
 		Data: config.RecordData,
 	}
 
 	record, err := findRecord(recordData)
 
 	if err != nil {
-		log.Fatalf("Record search error %s", err)
+		logger.Fatalf("Record search error %s", err)
 	}
 
 	if toDelete {
 		if record == nil {
-			log.Println("Can't delete record, does not exists")
+			logger.Log("Can't delete record, does not exists")
 			return
 		}
 
 		err = deleteRecord(record)
 
 		if err != nil {
-			log.Fatalf("Record delete failed %s", err)
+			logger.Fatalf("Record delete failed %s", err)
 		}
 
-		log.Println("Record deleted")
+		logger.Log("Record deleted")
 	} else {
 		if record == nil {
 			if !toCreate {
-				log.Fatal("Recored not exists, but creation disabled")
+				logger.Fatal("Recored not exists, but creation disabled")
 			}
 
 			create(recordData)
 		} else {
 			if !toUpdate {
-				log.Fatal("Recored exists, but update disabled")
+				logger.Fatal("Recored exists, but update disabled")
 			}
 
 			update(record, recordData)
