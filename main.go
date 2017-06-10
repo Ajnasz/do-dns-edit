@@ -33,16 +33,32 @@ func areRecordsEqual(record1 godo.DomainRecord, record2 godo.DomainRecord) bool 
 
 func findRecord(record godo.DomainRecord) (*godo.DomainRecord, error) {
 	ctx := context.TODO()
-	currentRecords, _, err := doClient.Domains.Records(ctx, config.TLD(), &godo.ListOptions{})
+	opt := &godo.ListOptions{}
 
-	if err != nil {
-		return nil, err
-	}
+	for {
+		currentRecords, resp, err := doClient.Domains.Records(ctx, config.TLD(), opt)
 
-	for _, aRecord := range currentRecords {
-		if areRecordsEqual(record, aRecord) {
-			return &aRecord, nil
+		if err != nil {
+			return nil, err
 		}
+
+		for _, aRecord := range currentRecords {
+			if areRecordsEqual(record, aRecord) {
+				return &aRecord, nil
+			}
+		}
+
+		if resp.Links == nil || resp.Links.IsLastPage() {
+			break
+		}
+
+		page, err := resp.Links.CurrentPage()
+		if err != nil {
+			return nil, err
+		}
+
+		// set the page we want for the next request
+		opt.Page = page + 1
 	}
 
 	return nil, nil
@@ -219,7 +235,7 @@ func main() {
 			logger.Fatalf("Record delete failed %s", err)
 		}
 
-		logger.Log("Record deleted")
+		logger.Log("Record deleted", record)
 	} else {
 		if record == nil {
 			if !toCreate {

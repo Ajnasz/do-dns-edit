@@ -14,4 +14,3 @@ $BASEDIR/../do-dns-edit \
 	-recordName="_acme-challenge" \
 	-recordData="$CERTBOT_VALIDATION" \
 	-delete="true" \
-
