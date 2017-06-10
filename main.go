@@ -167,8 +167,6 @@ func init() {
 
 	err := validateConfig(config)
 
-	logger.Fatal("ERR")
-
 	if err != nil {
 		logger.Fatal(err)
 	}
