@@ -5,10 +5,10 @@ if [ -z "$DO_TOKEN" ];then
 	exit 1
 fi
 
-go run main.go \
-	-domain="$CERTBOT_DOMAIN" \
-	-token="$DO_TOKEN" \
+/home/ajnasz/bin/do-dns-edit \
 	-recordType="TXT" \
-	-recordName="$CERTBOT_VALIDATION" \
-	-recordData="$CERTBOT_TOKEN" \
-	-create="true"
+	-token="$DO_TOKEN" \
+	-domain="$CERTBOT_DOMAIN" \
+	-recordName="_acme-challenge" \
+	-recordData="$CERTBOT_VALIDATION" \
+	-create="true" \

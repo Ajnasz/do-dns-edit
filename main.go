@@ -5,6 +5,7 @@ import "flag"
 import "reflect"
 import "log"
 import "fmt"
+import "strings"
 
 import "github.com/digitalocean/godo"
 import "golang.org/x/oauth2"
@@ -26,6 +27,18 @@ type Config struct {
 	Update bool
 }
 
+// TLD returns TLD of Domain
+func (config Config) TLD() string {
+	domainParts := strings.Split(config.Domain, ".")
+	return strings.Join(domainParts[len(domainParts)-2:], ".")
+}
+
+// SubDomain return sobdomains
+func (config Config) SubDomain() string {
+	domainParts := strings.Split(config.Domain, ".")
+	return strings.Join(domainParts[:len(domainParts)-2], ".")
+}
+
 type tokenSource struct {
 	AccessToken string
 }
@@ -45,7 +58,7 @@ func areRecordsEqual(record1 godo.DomainRecord, record2 godo.DomainRecord) bool 
 
 func findRecord(record godo.DomainRecord) (*godo.DomainRecord, error) {
 	ctx := context.TODO()
-	currentRecords, _, err := doClient.Domains.Records(ctx, config.Domain, &godo.ListOptions{})
+	currentRecords, _, err := doClient.Domains.Records(ctx, config.TLD(), &godo.ListOptions{})
 
 	if err != nil {
 		return nil, err
@@ -62,7 +75,7 @@ func findRecord(record godo.DomainRecord) (*godo.DomainRecord, error) {
 
 func createRecord(record godo.DomainRecord) (*godo.DomainRecord, error) {
 	ctx := context.TODO()
-	newRecord, _, err := doClient.Domains.CreateRecord(ctx, config.Domain, &godo.DomainRecordEditRequest{
+	newRecord, _, err := doClient.Domains.CreateRecord(ctx, config.TLD(), &godo.DomainRecordEditRequest{
 		Type: record.Type,
 		Name: record.Name,
 		Data: record.Data,
@@ -78,7 +91,7 @@ func createRecord(record godo.DomainRecord) (*godo.DomainRecord, error) {
 func updateRecord(oldRecord *godo.DomainRecord, record godo.DomainRecord) (*godo.DomainRecord, error) {
 	ctx := context.TODO()
 	log.Println("Update Record", oldRecord.ID)
-	newRecord, _, err := doClient.Domains.EditRecord(ctx, config.Domain, oldRecord.ID, &godo.DomainRecordEditRequest{
+	newRecord, _, err := doClient.Domains.EditRecord(ctx, config.TLD(), oldRecord.ID, &godo.DomainRecordEditRequest{
 		Type: record.Type,
 		Name: record.Name,
 		Data: record.Data,
@@ -93,7 +106,7 @@ func updateRecord(oldRecord *godo.DomainRecord, record godo.DomainRecord) (*godo
 
 func deleteRecord(oldRecord *godo.DomainRecord) error {
 	ctx := context.TODO()
-	_, err := doClient.Domains.DeleteRecord(ctx, config.Domain, oldRecord.ID)
+	_, err := doClient.Domains.DeleteRecord(ctx, config.TLD(), oldRecord.ID)
 
 	return err
 }
@@ -176,7 +189,7 @@ func init() {
 
 	flag.Parse()
 
-	log.Println(config)
+	log.Println("Config", config)
 	err := validateConfig(config)
 
 	if err != nil {
@@ -201,7 +214,11 @@ func main() {
 		log.Fatal("Can't delete and create/update at the same time")
 	}
 
-	recordData := godo.DomainRecord{Type: config.RecordType, Name: config.RecordName, Data: config.RecordData}
+	recordData := godo.DomainRecord{
+		Type: config.RecordType,
+		Name: config.RecordName + "." + config.SubDomain(),
+		Data: config.RecordData,
+	}
 
 	record, err := findRecord(recordData)
 
