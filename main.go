@@ -3,6 +3,7 @@ package main
 import "context"
 import "flag"
 import "strings"
+import "fmt"
 
 import "github.com/digitalocean/godo"
 import "golang.org/x/oauth2"
@@ -67,7 +68,6 @@ func createRecord(record godo.DomainRecord) (*godo.DomainRecord, error) {
 
 func updateRecord(oldRecord *godo.DomainRecord, record godo.DomainRecord) (*godo.DomainRecord, error) {
 	ctx := context.TODO()
-	logger.Log("Update Record", oldRecord.ID)
 	newRecord, _, err := doClient.Domains.EditRecord(ctx, config.TLD(), oldRecord.ID, &godo.DomainRecordEditRequest{
 		Type: record.Type,
 		Name: record.Name,
@@ -88,24 +88,28 @@ func deleteRecord(oldRecord *godo.DomainRecord) error {
 	return err
 }
 
+func printAction(action string, record godo.DomainRecord) {
+	fmt.Printf("%s %s %s %s %s\n", action, config.TLD(), record.Name, record.Type, record.Data)
+}
+
 func create(recordData godo.DomainRecord) {
-	record, err := createRecord(recordData)
+	_, err := createRecord(recordData)
 
 	if err != nil {
 		logger.Fatalf("Record create error %s", err)
 	}
 
-	logger.Log("Record created", record)
+	printAction("create", recordData)
 }
 
 func update(record *godo.DomainRecord, recordData godo.DomainRecord) {
-	record, err := updateRecord(record, recordData)
+	_, err := updateRecord(record, recordData)
 
 	if err != nil {
 		logger.Fatalf("Record create error %s", err)
 	}
 
-	logger.Log("Record updated", record)
+	printAction("update", recordData)
 }
 
 func remove(record *godo.DomainRecord) {
@@ -115,7 +119,7 @@ func remove(record *godo.DomainRecord) {
 		logger.Fatalf("Record delete failed %s", err)
 	}
 
-	logger.Log("Record deleted", record)
+	printAction("delete", *record)
 }
 
 func init() {
