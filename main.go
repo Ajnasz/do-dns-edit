@@ -2,8 +2,6 @@ package main
 
 import "context"
 import "flag"
-import "reflect"
-import "fmt"
 import "strings"
 
 import "github.com/digitalocean/godo"
@@ -13,18 +11,6 @@ var doClient *godo.Client
 var config Config
 
 var logger Logger
-
-type tokenSource struct {
-	AccessToken string
-}
-
-func (t *tokenSource) Token() (*oauth2.Token, error) {
-	token := &oauth2.Token{
-		AccessToken: t.AccessToken,
-	}
-
-	return token, nil
-}
 
 func areRecordsEqual(record1 godo.DomainRecord, record2 godo.DomainRecord) bool {
 	return record1.Type == record2.Type &&
@@ -122,46 +108,14 @@ func update(record *godo.DomainRecord, recordData godo.DomainRecord) {
 	logger.Log("Record updated", record)
 }
 
-func validateField(field reflect.StructField, v reflect.Value) error {
-	if required, ok := field.Tag.Lookup("required"); ok {
-		if required == "true" {
-			value := v.FieldByName(field.Name)
-			isOk := false
+func remove(record *godo.DomainRecord) {
+	err := deleteRecord(record)
 
-			switch field.Type.Name() {
-			case "string":
-				isOk = value.String() != ""
-				break
-			case "boolean":
-				isOk = value.Bool()
-				break
-			}
-
-			if !isOk {
-				return fmt.Errorf("%s is required", field.Name)
-			}
-		}
+	if err != nil {
+		logger.Fatalf("Record delete failed %s", err)
 	}
 
-	return nil
-}
-
-func validateConfig(config Config) error {
-	st := reflect.TypeOf(config)
-	v := reflect.ValueOf(config)
-
-	for i := 0; i < st.NumField(); i++ {
-		field := st.Field(i)
-
-		err := validateField(field, v)
-
-		if err != nil {
-			return err
-		}
-
-	}
-
-	return nil
+	logger.Log("Record deleted", record)
 }
 
 func init() {
@@ -229,13 +183,7 @@ func main() {
 			return
 		}
 
-		err = deleteRecord(record)
-
-		if err != nil {
-			logger.Fatalf("Record delete failed %s", err)
-		}
-
-		logger.Log("Record deleted", record)
+		remove(record)
 	} else {
 		if record == nil {
 			if !toCreate {
