@@ -6,6 +6,7 @@ import "strings"
 import "fmt"
 
 import "github.com/digitalocean/godo"
+import "github.com/Ajnasz/config-validator"
 import "golang.org/x/oauth2"
 
 var doClient *godo.Client
@@ -139,7 +140,7 @@ func init() {
 
 	flag.Parse()
 
-	err := validateConfig(config)
+	err := configValidator.Validate(config)
 
 	if err != nil {
 		logger.Fatal(err)
