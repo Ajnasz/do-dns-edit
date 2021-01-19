@@ -2,8 +2,10 @@ package main
 
 import "context"
 import "flag"
-import "strings"
+import "errors"
 import "fmt"
+import "strings"
+import "time"
 
 import "github.com/digitalocean/godo"
 import "github.com/Ajnasz/config-validator"
@@ -14,7 +16,9 @@ var config Config
 
 var logger Logger
 
-func areRecordsEqual(record1 godo.DomainRecord, record2 godo.DomainRecord) bool {
+var errRecordNotChanged error = errors.New("Record not changed")
+
+func areRecordsSimilar(record1 godo.DomainRecord, record2 godo.DomainRecord) bool {
 	return record1.Type == record2.Type &&
 		record1.Name == record2.Name
 }
@@ -31,7 +35,7 @@ func findRecord(record godo.DomainRecord) (*godo.DomainRecord, error) {
 		}
 
 		for _, aRecord := range currentRecords {
-			if areRecordsEqual(record, aRecord) {
+			if areRecordsSimilar(record, aRecord) {
 				return &aRecord, nil
 			}
 		}
@@ -67,8 +71,44 @@ func createRecord(record godo.DomainRecord) (*godo.DomainRecord, error) {
 	return newRecord, nil
 }
 
+func areRecordsEqual(one godo.DomainRecord, other godo.DomainRecord) bool {
+	if one.Type != other.Type {
+		return false
+	}
+
+	if one.Name != other.Name {
+		return false
+	}
+
+	if one.Data != other.Data {
+		return false
+	}
+
+	if one.Port != other.Port {
+		return false
+	}
+
+	if one.Priority != other.Priority {
+		return false
+	}
+
+	if one.TTL != other.TTL {
+		return false
+	}
+
+	if one.Weight != other.Weight {
+		return false
+	}
+
+	return true
+}
+
 func updateRecord(oldRecord *godo.DomainRecord, record godo.DomainRecord) (*godo.DomainRecord, error) {
-	ctx := context.TODO()
+	if areRecordsEqual(*oldRecord, record) {
+		return oldRecord, errRecordNotChanged
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	newRecord, _, err := doClient.Domains.EditRecord(ctx, config.TLD(), oldRecord.ID, &godo.DomainRecordEditRequest{
 		Type: record.Type,
 		Name: record.Name,
@@ -76,9 +116,11 @@ func updateRecord(oldRecord *godo.DomainRecord, record godo.DomainRecord) (*godo
 	})
 
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
+	cancel()
 	return newRecord, nil
 }
 
@@ -107,6 +149,10 @@ func update(record *godo.DomainRecord, recordData godo.DomainRecord) {
 	_, err := updateRecord(record, recordData)
 
 	if err != nil {
+		if err == errRecordNotChanged {
+			return
+		}
+
 		logger.Fatalf("Record create error %s", err)
 	}
 
@@ -133,6 +179,7 @@ func init() {
 	flag.StringVar(&config.RecordType, "recordType", "", "Type of the DNS record, like A, TXT, MX, etc.")
 	flag.StringVar(&config.RecordName, "recordName", "", "Name of the record, like @, www, email, etc.")
 	flag.StringVar(&config.RecordData, "recordData", "", "Value of the record")
+	flag.IntVar(&config.RecordTTL, "recordTTL", 3600, "TTL for the record")
 
 	flag.BoolVar(&config.Delete, "delete", false, "Delete the record")
 	flag.BoolVar(&config.Create, "create", false, "Create the record if not exists")
@@ -174,6 +221,7 @@ func main() {
 		Type: config.RecordType,
 		Name: strings.Join(name, "."),
 		Data: config.RecordData,
+		TTL:  config.RecordTTL,
 	}
 
 	record, err := findRecord(recordData)

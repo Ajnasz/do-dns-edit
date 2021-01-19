@@ -10,6 +10,7 @@ type Config struct {
 	RecordType string `required:"true"`
 	RecordName string `required:"true"`
 	RecordData string `required:"true"`
+	RecordTTL  int
 
 	Delete bool
 	Create bool
