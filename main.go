@@ -1,15 +1,18 @@
 package main
 
-import "context"
-import "flag"
-import "errors"
-import "fmt"
-import "strings"
-import "time"
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"strings"
+	"time"
 
-import "github.com/digitalocean/godo"
-import "github.com/Ajnasz/config-validator"
-import "golang.org/x/oauth2"
+	"github.com/digitalocean/godo"
+
+	configValidator "github.com/Ajnasz/config-validator"
+	"golang.org/x/oauth2"
+)
 
 var doClient *godo.Client
 var config Config
@@ -132,7 +135,9 @@ func deleteRecord(oldRecord *godo.DomainRecord) error {
 }
 
 func printAction(action string, record godo.DomainRecord) {
-	fmt.Printf("%s %s %s %s %s\n", action, config.TLD(), record.Name, record.Type, record.Data)
+	fmt.Println("action\ttld\tname\ttype\tdata")
+	fmt.Printf("%s\t%s\t%s\t%s\t%s", action, config.TLD(), record.Name, record.Type, record.Data)
+	fmt.Println()
 }
 
 func create(recordData godo.DomainRecord) {
@@ -184,6 +189,7 @@ func init() {
 	flag.BoolVar(&config.Delete, "delete", false, "Delete the record")
 	flag.BoolVar(&config.Create, "create", false, "Create the record if not exists")
 	flag.BoolVar(&config.Update, "update", false, "Update the record if exists")
+	flag.BoolVar(&config.Read, "read", false, "Read the record if exists")
 
 	flag.Parse()
 
@@ -230,6 +236,17 @@ func main() {
 		logger.Fatalf("Record search error %s", err)
 	}
 
+	if config.Read {
+		fmt.Println("tld\tname\ttype\tdata")
+		fmt.Printf("%s\t%s\t%s\t%s", config.TLD(), record.Name, record.Type, record.Data)
+		fmt.Println()
+		return
+	}
+
+	if recordData.Data == "" {
+		logger.Fatal("recordData is required")
+	}
+
 	if toDelete {
 		if record == nil {
 			logger.Log("Can't delete record, does not exists")
@@ -246,7 +263,7 @@ func main() {
 			create(recordData)
 		} else {
 			if !toUpdate {
-				logger.Fatal("Recored exists, but update disabled")
+				logger.Fatal("Record exists, but update disabled")
 			}
 
 			update(record, recordData)
